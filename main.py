@@ -625,3 +625,60 @@ def validate_band_bounds(lower: int, upper: int) -> Tuple[bool, str]:
     if not validate_bps(lower) or not validate_bps(upper):
         return False, "bps must be in [0, 10000]"
     return True, ""
+
+
+def format_band_row(b: RateBand) -> str:
+    return f"{b.band_id:4} | {b.band_tag:12} | {b.lower_bps:5} | {b.upper_bps:5} | {b.policy_epoch:3} | {b.active}"
+
+
+def format_signal_row(s: PolicySignal) -> str:
+    return f"{s.signal_id:4} | {s.signal_hash[:20]}... | {s.epoch:3} | {s.at_block}"
+
+
+def format_feed_row(f: FeedSlot, stale: bool) -> str:
+    return f"{f.feed_index:2} | {f.value:6} | {f.updated_at_block:6} | {stale}"
+
+
+def format_session_row(s: TerminalSession) -> str:
+    return f"{s.session_id:4} | {s.analyst[:14]:14} | {s.opened_at_block:6} | {s.expiry_block:6} | {s.closed}"
+
+
+def compute_fee(state: FEDarState, amount: int) -> int:
+    return (amount * state.fee_bps) // BPS_DENOMINATOR
+
+
+def compute_net_after_fee(state: FEDarState, amount: int) -> int:
+    return amount - compute_fee(state, amount)
+
+
+def count_active_bands(state: FEDarState) -> int:
+    return sum(1 for b in state.bands.values() if b.active)
+
+
+def count_signals_in_epoch(state: FEDarState, epoch: int) -> int:
+    return sum(1 for s in state.signals.values() if s.epoch == epoch)
+
+
+def count_open_sessions(state: FEDarState) -> int:
+    return sum(1 for s in state.sessions.values() if not s.closed and state.current_block <= s.expiry_block)
+
+
+def get_last_signal_for_epoch(state: FEDarState, epoch: int) -> Optional[PolicySignal]:
+    candidates = [s for s in state.signals.values() if s.epoch == epoch]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda x: x.at_block)
+
+
+def blocks_until_session_expiry(state: FEDarState, session_id: int) -> int:
+    s = state.sessions.get(session_id)
+    if not s or s.closed:
+        return 0
+    if state.current_block >= s.expiry_block:
+        return 0
+    return s.expiry_block - state.current_block
+
+
+def blocks_since_epoch_start(state: FEDarState, epoch: int) -> int:
+    start = state.epoch_start_blocks.get(epoch, 0)
+    if start == 0:
