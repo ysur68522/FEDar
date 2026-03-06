@@ -454,3 +454,60 @@ def cmd_feed_sum(state: FEDarState, from_idx: int = 0, to_idx: int = MAX_FEEDS -
     return f"Feed sum [{from_idx}-{to_idx}] = {total}"
 
 
+def cmd_feed_mean(state: FEDarState, from_idx: int = 0, to_idx: int = MAX_FEEDS - 1) -> str:
+    if from_idx > to_idx or to_idx >= MAX_FEEDS:
+        return f"Invalid range; use 0..{MAX_FEEDS - 1}"
+    vals = [state.feeds[i].value for i in range(from_idx, to_idx + 1) if i in state.feeds]
+    if not vals:
+        return "No feed data in range"
+    return f"Feed mean [{from_idx}-{to_idx}] = {sum(vals) / len(vals):.2f}"
+
+
+def cmd_config_snapshot(state: FEDarState) -> str:
+    return (
+        f"band_cap={state.band_cap} band_count={len(state.bands)} current_epoch={state.current_epoch} "
+        f"stale_window={state.stale_window_blocks} fee_bps={state.fee_bps} current_block={state.current_block}"
+    )
+
+
+def cmd_epoch_stats(state: FEDarState, epoch: int) -> str:
+    start = state.epoch_start_blocks.get(epoch, 0)
+    count = sum(1 for s in state.signals.values() if s.epoch == epoch)
+    return f"Epoch {epoch}: start_block={start} signal_count={count}"
+
+
+def cmd_band_by_tag(state: FEDarState, tag: str) -> str:
+    for bid, b in state.bands.items():
+        if b.band_tag == tag:
+            return f"Band id={bid} tag={tag} lower={b.lower_bps} upper={b.upper_bps} active={b.active}"
+    return f"No band with tag '{tag}'"
+
+
+def cmd_session_votes(state: FEDarState, session_id: int) -> str:
+    s = state.sessions.get(session_id)
+    if not s:
+        return "Session not found"
+    if not s.votes:
+        return f"Session {session_id}: no votes"
+    lines = [f"Session {session_id} votes:"]
+    for analyst, v in s.votes.items():
+        lines.append(f"  {analyst[:16]}... dir={v.direction} band_id={v.band_id}")
+    return "\n".join(lines)
+
+
+# -----------------------------------------------------------------------------
+# Jer0me contract ABI (stub for simulation / future RPC)
+# -----------------------------------------------------------------------------
+
+JER0ME_ABI = [
+    {"inputs": [], "name": "getBandCount", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"},
+    {"inputs": [{"internalType": "uint256", "name": "bandId_", "type": "uint256"}], "name": "getBand", "outputs": [{"internalType": "bytes32", "name": "bandTag", "type": "bytes32"}, {"internalType": "uint256", "name": "lowerBps", "type": "uint256"}, {"internalType": "uint256", "name": "upperBps", "type": "uint256"}, {"internalType": "uint256", "name": "policyEpoch", "type": "uint256"}, {"internalType": "uint256", "name": "registeredAtBlock", "type": "uint256"}, {"internalType": "bool", "name": "active", "type": "bool"}], "stateMutability": "view", "type": "function"},
+    {"inputs": [{"internalType": "uint256", "name": "bps_", "type": "uint256"}], "name": "resolveBandForBps", "outputs": [{"internalType": "uint256", "name": "bandId", "type": "uint256"}, {"internalType": "bool", "name": "found", "type": "bool"}], "stateMutability": "view", "type": "function"},
+    {"inputs": [], "name": "currentEpoch", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"},
+    {"inputs": [{"internalType": "uint256", "name": "feedIndex_", "type": "uint256"}], "name": "getFeed", "outputs": [{"internalType": "int256", "name": "value", "type": "int256"}, {"internalType": "uint256", "name": "timestamp", "type": "uint256"}, {"internalType": "uint256", "name": "updatedAtBlock", "type": "uint256"}], "stateMutability": "view", "type": "function"},
+    {"inputs": [{"internalType": "uint256", "name": "sessionId_", "type": "uint256"}], "name": "getSession", "outputs": [{"internalType": "address", "name": "analyst", "type": "address"}, {"internalType": "uint256", "name": "openedAtBlock", "type": "uint256"}, {"internalType": "uint256", "name": "expiryBlock", "type": "uint256"}, {"internalType": "bool", "name": "closed", "type": "bool"}], "stateMutability": "view", "type": "function"},
+]
+
+
+def simulate_contract_get_band_count(state: FEDarState) -> int:
+    return len(state.bands)
