@@ -568,3 +568,60 @@ def cmd_import(state: FEDarState, path: str) -> str:
     imported = FEDarState.from_dict(data)
     state.bands = imported.bands
     state.signals = imported.signals
+    state.sessions = imported.sessions
+    state.feeds = imported.feeds
+    state.band_history = imported.band_history
+    state.band_cap = imported.band_cap
+    state.current_epoch = imported.current_epoch
+    state.signal_counter = imported.signal_counter
+    state.session_counter = imported.session_counter
+    state.band_counter = imported.band_counter
+    state.history_counter = imported.history_counter
+    state.epoch_start_blocks = imported.epoch_start_blocks
+    state.analyst_whitelist = imported.analyst_whitelist
+    state.current_block = imported.current_block
+    state.stale_window_blocks = imported.stale_window_blocks
+    state.fee_bps = imported.fee_bps
+    return f"State imported from {path}"
+
+
+def cmd_export_bands_csv(state: FEDarState, path: str) -> str:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        f.write("band_id,band_tag,lower_bps,upper_bps,policy_epoch,active\n")
+        for b in sorted(state.bands.values(), key=lambda x: x.band_id):
+            f.write(f"{b.band_id},{b.band_tag},{b.lower_bps},{b.upper_bps},{b.policy_epoch},{b.active}\n")
+    return f"Bands CSV exported to {path}"
+
+
+def cmd_export_signals_csv(state: FEDarState, path: str) -> str:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        f.write("signal_id,signal_hash,epoch,at_block\n")
+        for s in sorted(state.signals.values(), key=lambda x: x.signal_id):
+            f.write(f"{s.signal_id},{s.signal_hash},{s.epoch},{s.at_block}\n")
+    return f"Signals CSV exported to {path}"
+
+
+# -----------------------------------------------------------------------------
+# Persistence
+# -----------------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------------
+# Validation and formatting helpers
+# -----------------------------------------------------------------------------
+
+
+def validate_bps(value: int) -> bool:
+    return 0 <= value <= BPS_DENOMINATOR
+
+
+def validate_band_bounds(lower: int, upper: int) -> Tuple[bool, str]:
+    if lower >= upper:
+        return False, "lower_bps must be < upper_bps"
+    if not validate_bps(lower) or not validate_bps(upper):
+        return False, "bps must be in [0, 10000]"
+    return True, ""
