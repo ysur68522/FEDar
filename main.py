@@ -796,3 +796,60 @@ def run_cmd(state: FEDarState, args: List[str]) -> str:
         return cmd_session_votes(state, int(rest[1]))
 
     if cmd == "export" and len(rest) >= 2:
+        if rest[0] == "state":
+            return cmd_export(state, rest[1])
+        if rest[0] == "bands":
+            return cmd_export_bands_csv(state, rest[1])
+        if rest[0] == "signals":
+            return cmd_export_signals_csv(state, rest[1])
+    if cmd == "import" and len(rest) >= 1:
+        return cmd_import(state, rest[0])
+
+    if cmd == "help":
+        return textwrap.dedent("""
+            FEDar — Fed tracker & analyst terminal
+            band register <tag> <lower_bps> <upper_bps>
+            band list [--active]
+            band resolve <bps>
+            band history [from_idx] [to_idx]
+            band tag <tag>
+            signal push [payload]
+            signal list [epoch]
+            session open <analyst_addr>
+            session close <session_id>
+            session list [--open]
+            session votes <session_id>
+            vote <session_id> <analyst> <direction> <band_id>   # direction: 0=hold 1=up 2=down
+            feed update <index> [value]
+            feed list
+            feed sum [from_idx] [to_idx]
+            feed mean [from_idx] [to_idx]
+            epoch advance
+            epoch stats <epoch>
+            block advance [delta]
+            block set <n>
+            config | config snapshot | stats | analyst <addr> <true|false>
+            export state <path> | export bands <path> | export signals <path>
+            import <path>
+            help
+        """).strip()
+
+    if cmd == "simulate" and len(rest) >= 1:
+        if rest[0] == "band_count":
+            return str(simulate_contract_get_band_count(state))
+        if rest[0] == "resolve" and len(rest) > 1:
+            bid, found = simulate_contract_resolve_band_for_bps(state, int(rest[1]))
+            return f"band_id={bid} found={found}"
+        if rest[0] == "feed" and len(rest) > 1:
+            v, ts, blk = simulate_contract_get_feed(state, int(rest[1]))
+            return f"value={v} timestamp={ts} updated_at_block={blk}"
+        if rest[0] == "session" and len(rest) > 1:
+            a, o, e, c = simulate_contract_get_session(state, int(rest[1]))
+            return f"analyst={a} opened={o} expiry={e} closed={c}"
+
+    if cmd == "seed":
+        return cmd_seed_demo(state)
+
+    if cmd == "validate" and len(rest) >= 1:
+        if rest[0] == "bps" and len(rest) > 1:
+            v = int(rest[1])
