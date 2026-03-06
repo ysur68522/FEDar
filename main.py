@@ -682,3 +682,60 @@ def blocks_until_session_expiry(state: FEDarState, session_id: int) -> int:
 def blocks_since_epoch_start(state: FEDarState, epoch: int) -> int:
     start = state.epoch_start_blocks.get(epoch, 0)
     if start == 0:
+        return 0
+    return state.current_block - start
+
+
+def is_epoch_current(state: FEDarState, epoch: int) -> bool:
+    return epoch == state.current_epoch
+
+
+def has_active_band_at_bps(state: FEDarState, bps: int) -> bool:
+    _, found = resolve_band_for_bps(state, bps)
+    return found
+
+
+def batch_resolve_bands_for_bps(state: FEDarState, bps_list: List[int]) -> List[Optional[int]]:
+    result = []
+    for bps in bps_list:
+        bid, _ = resolve_band_for_bps(state, bps)
+        result.append(bid)
+    return result
+
+
+def load_state(path: Path) -> FEDarState:
+    if not path.exists():
+        return FEDarState()
+    with open(path, "r", encoding="utf-8") as f:
+        return FEDarState.from_dict(json.load(f))
+
+
+def save_state(state: FEDarState, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(state.to_dict(), f, indent=2)
+
+
+# -----------------------------------------------------------------------------
+# CLI parser and REPL
+# -----------------------------------------------------------------------------
+
+
+def run_cmd(state: FEDarState, args: List[str]) -> str:
+    if not args:
+        return ""
+    cmd = args[0].lower()
+    rest = args[1:]
+
+    if cmd == "band" and len(rest) >= 4 and rest[0] == "register":
+        return cmd_band_register(state, rest[1], int(rest[2]), int(rest[3]))
+    if cmd == "band" and len(rest) >= 1 and rest[0] == "list":
+        return cmd_band_list(state, active_only="--active" in rest)
+    if cmd == "band" and len(rest) >= 1 and rest[0] == "resolve":
+        return cmd_band_resolve(state, int(rest[1])) if len(rest) > 1 else "Usage: band resolve <bps>"
+
+    if cmd == "signal" and len(rest) >= 1 and rest[0] == "push":
+        payload = rest[1] if len(rest) > 1 else str(random.randint(0, 2**32))
+        return cmd_signal_push(state, payload)
+    if cmd == "signal" and len(rest) >= 1 and rest[0] == "list":
+        epoch = int(rest[1]) if len(rest) > 1 and rest[1].isdigit() else None
