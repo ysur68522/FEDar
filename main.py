@@ -55,3 +55,60 @@ class RateBand:
     active: bool
 
 
+@dataclass
+class PolicySignal:
+    signal_id: int
+    signal_hash: str
+    epoch: int
+    relayer: str
+    at_block: int
+
+
+@dataclass
+class AnalystVote:
+    direction: int
+    band_id: int
+    at_block: int
+
+
+@dataclass
+class TerminalSession:
+    session_id: int
+    analyst: str
+    opened_at_block: int
+    expiry_block: int
+    closed: bool
+    votes: Dict[str, AnalystVote] = field(default_factory=dict)
+
+
+@dataclass
+class FeedSlot:
+    feed_index: int
+    value: int
+    timestamp: int
+    updated_at_block: int
+
+
+@dataclass
+class BandHistoryEntry:
+    band_id: int
+    lower_bps: int
+    upper_bps: int
+    active: bool
+    at_block: int
+
+
+# -----------------------------------------------------------------------------
+# State container
+# -----------------------------------------------------------------------------
+
+
+@dataclass
+class FEDarState:
+    bands: Dict[int, RateBand] = field(default_factory=dict)
+    signals: Dict[int, PolicySignal] = field(default_factory=dict)
+    sessions: Dict[int, TerminalSession] = field(default_factory=dict)
+    feeds: Dict[int, FeedSlot] = field(default_factory=dict)
+    band_history: List[BandHistoryEntry] = field(default_factory=list)
+    band_cap: int = MAX_BANDS
+    current_epoch: int = 1
