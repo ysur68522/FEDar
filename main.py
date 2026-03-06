@@ -226,3 +226,60 @@ def cmd_band_register(state: FEDarState, tag: str, lower_bps: int, upper_bps: in
         return "Error: lower_bps must be < upper_bps"
     if state.band_counter >= state.band_cap:
         return "Error: band cap exceeded"
+    state.band_counter += 1
+    bid = state.band_counter
+    state.bands[bid] = RateBand(
+        band_id=bid,
+        band_tag=tag,
+        lower_bps=lower_bps,
+        upper_bps=upper_bps,
+        policy_epoch=state.current_epoch,
+        registered_at_block=state.current_block,
+        active=True,
+    )
+    state.history_counter += 1
+    state.band_history.append(
+        BandHistoryEntry(band_id=bid, lower_bps=lower_bps, upper_bps=upper_bps, active=True, at_block=state.current_block)
+    )
+    return f"Band {bid} registered: {tag} [{lower_bps}-{upper_bps}] bps"
+
+
+def cmd_band_list(state: FEDarState, active_only: bool = False) -> str:
+    lines = ["id | tag | lower_bps | upper_bps | epoch | active"]
+    for bid in sorted(state.bands.keys()):
+        b = state.bands[bid]
+        if active_only and not b.active:
+            continue
+        lines.append(f"{b.band_id} | {b.band_tag} | {b.lower_bps} | {b.upper_bps} | {b.policy_epoch} | {b.active}")
+    return "\n".join(lines) if len(lines) > 1 else "No bands"
+
+
+def cmd_band_resolve(state: FEDarState, bps: int) -> str:
+    band_id, found = resolve_band_for_bps(state, bps)
+    if found:
+        return f"Bps {bps} -> band_id {band_id}"
+    return f"No active band for bps {bps}"
+
+
+# -----------------------------------------------------------------------------
+# Commands: signals
+# -----------------------------------------------------------------------------
+
+
+def cmd_signal_push(state: FEDarState, payload: str) -> str:
+    state.signal_counter += 1
+    sig_hash = bytes32_hex(payload)
+    state.signals[state.signal_counter] = PolicySignal(
+        signal_id=state.signal_counter,
+        signal_hash=sig_hash,
+        epoch=state.current_epoch,
+        relayer=random_address(),
+        at_block=state.current_block,
+    )
+    return f"Signal {state.signal_counter} pushed (epoch {state.current_epoch})"
+
+
+def cmd_signal_list(state: FEDarState, epoch: Optional[int] = None, limit: int = 20) -> str:
+    lines = ["id | signal_hash | epoch | at_block"]
+    count = 0
+    for sid in reversed(sorted(state.signals.keys())):
