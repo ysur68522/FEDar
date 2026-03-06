@@ -853,3 +853,60 @@ def run_cmd(state: FEDarState, args: List[str]) -> str:
     if cmd == "validate" and len(rest) >= 1:
         if rest[0] == "bps" and len(rest) > 1:
             v = int(rest[1])
+            return f"Valid: {validate_bps(v)}" if validate_bps(v) else f"Invalid bps: {v}"
+        if rest[0] == "band" and len(rest) >= 4:
+            ok, msg = validate_band_bounds(int(rest[1]), int(rest[2]))
+            return msg if not ok else "Valid band bounds"
+        if rest[0] == "state":
+            return (
+                f"Bands: {len(state.bands)} (active: {count_active_bands(state)}) "
+                f"Signals: {len(state.signals)} Sessions: {len(state.sessions)} (open: {count_open_sessions(state)}) "
+                f"Feeds: {len(state.feeds)} Epoch: {state.current_epoch} Block: {state.current_block}"
+            )
+
+    if cmd == "fee" and len(rest) >= 1:
+        amt = int(rest[0])
+        fee = compute_fee(state, amt)
+        net = compute_net_after_fee(state, amt)
+        return f"Amount={amt} fee_bps={state.fee_bps} fee={fee} net={net}"
+
+    return f"Unknown command: {cmd}. Use 'help'."
+
+
+def repl(state: FEDarState, state_path: Path) -> None:
+    print(f"{APP_NAME} v{APP_VERSION} — Fed tracker terminal. Type 'help' for commands.")
+    while True:
+        try:
+            line = input("fed> ").strip()
+        except EOFError:
+            break
+        if not line:
+            continue
+        parts = line.split()
+        out = run_cmd(state, parts)
+        if out:
+            print(out)
+    save_state(state, state_path)
+    print("Bye.")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=f"{APP_NAME} — Fed tracker and analyst terminal")
+    parser.add_argument("--state", default=DEFAULT_STATE_FILE, help="State JSON path")
+    parser.add_argument("--config", default=DEFAULT_CONFIG_FILE, help="Config JSON path")
+    parser.add_argument("command", nargs="*", help="Command and args (optional; if omitted, REPL)")
+    args = parser.parse_args()
+    state_path = Path(args.state)
+    state = load_state(state_path)
+    if args.command:
+        out = run_cmd(state, args.command)
+        if out:
+            print(out)
+        save_state(state, state_path)
+        return 0
+    repl(state, state_path)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
