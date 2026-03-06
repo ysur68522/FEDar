@@ -739,3 +739,60 @@ def run_cmd(state: FEDarState, args: List[str]) -> str:
         return cmd_signal_push(state, payload)
     if cmd == "signal" and len(rest) >= 1 and rest[0] == "list":
         epoch = int(rest[1]) if len(rest) > 1 and rest[1].isdigit() else None
+        return cmd_signal_list(state, epoch=epoch)
+
+    if cmd == "session" and len(rest) >= 2 and rest[0] == "open":
+        return cmd_session_open(state, rest[1])
+    if cmd == "session" and len(rest) >= 2 and rest[0] == "close":
+        return cmd_session_close(state, int(rest[1]))
+    if cmd == "session" and len(rest) >= 1 and rest[0] == "list":
+        return cmd_session_list(state, open_only="--open" in rest)
+    if cmd == "vote" and len(rest) >= 4:
+        return cmd_vote_cast(state, int(rest[0]), rest[1], int(rest[2]), int(rest[3]))
+
+    if cmd == "feed" and len(rest) >= 2 and rest[0] == "update":
+        return cmd_feed_update(state, int(rest[1]), int(rest[2]) if len(rest) > 2 else 0)
+    if cmd == "feed" and len(rest) >= 1 and rest[0] == "list":
+        return cmd_feed_list(state)
+
+    if cmd == "epoch" and len(rest) >= 1 and rest[0] == "advance":
+        return cmd_epoch_advance(state)
+    if cmd == "block" and len(rest) >= 1:
+        if rest[0] == "advance":
+            delta = int(rest[1]) if len(rest) > 1 else 1
+            return cmd_block_advance(state, delta)
+        if rest[0] == "set":
+            return cmd_block_set(state, int(rest[1])) if len(rest) > 1 else "Usage: block set <n>"
+
+    if cmd == "config":
+        return cmd_config_show(state)
+    if cmd == "config" and len(rest) >= 1 and rest[0] == "snapshot":
+        return cmd_config_snapshot(state)
+    if cmd == "stats":
+        return cmd_stats(state)
+    if cmd == "analyst" and len(rest) >= 2:
+        allowed = rest[1].lower() in ("1", "true", "yes")
+        return cmd_analyst_whitelist(state, rest[0], allowed)
+
+    if cmd == "band" and len(rest) >= 1 and rest[0] == "history":
+        from_i = int(rest[1]) if len(rest) > 1 and rest[1].isdigit() else None
+        to_i = int(rest[2]) if len(rest) > 2 and rest[2].isdigit() else None
+        return cmd_band_history(state, from_i, to_i)
+    if cmd == "band" and len(rest) >= 2 and rest[0] == "tag":
+        return cmd_band_by_tag(state, rest[1])
+
+    if cmd == "feed" and len(rest) >= 2 and rest[0] == "sum":
+        from_i = int(rest[1]) if len(rest) > 1 else 0
+        to_i = int(rest[2]) if len(rest) > 2 else MAX_FEEDS - 1
+        return cmd_feed_sum(state, from_i, to_i)
+    if cmd == "feed" and len(rest) >= 2 and rest[0] == "mean":
+        from_i = int(rest[1]) if len(rest) > 1 else 0
+        to_i = int(rest[2]) if len(rest) > 2 else MAX_FEEDS - 1
+        return cmd_feed_mean(state, from_i, to_i)
+
+    if cmd == "epoch" and len(rest) >= 2 and rest[0] == "stats":
+        return cmd_epoch_stats(state, int(rest[1]))
+    if cmd == "session" and len(rest) >= 2 and rest[0] == "votes":
+        return cmd_session_votes(state, int(rest[1]))
+
+    if cmd == "export" and len(rest) >= 2:
