@@ -169,3 +169,60 @@ class FEDarState:
                 expiry_block=v["expiry_block"],
                 closed=v["closed"],
                 votes=votes,
+            )
+        for k, v in d.get("feeds", {}).items():
+            state.feeds[int(k)] = FeedSlot(**v)
+        for e in d.get("band_history", []):
+            state.band_history.append(BandHistoryEntry(**e))
+        return state
+
+
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
+
+
+def bytes32_hex(s: str) -> str:
+    h = hashlib.sha256(s.encode()).hexdigest()
+    return "0x" + h[:64] if len(h) >= 64 else "0x" + h.ljust(64, "0")
+
+
+def random_address() -> str:
+    return "0x" + "".join(random.choices("0123456789abcdef", k=40))
+
+
+def advance_block(state: FEDarState, delta: int = 1) -> None:
+    state.current_block += delta
+
+
+def resolve_band_for_bps(state: FEDarState, bps: int) -> Tuple[Optional[int], bool]:
+    for bid, b in state.bands.items():
+        if b.active and bps >= b.lower_bps and bps <= b.upper_bps:
+            return (bid, True)
+    return (None, False)
+
+
+def is_session_open(state: FEDarState, session_id: int) -> bool:
+    s = state.sessions.get(session_id)
+    if not s or s.closed:
+        return False
+    return state.current_block <= s.expiry_block
+
+
+def is_feed_stale(state: FEDarState, feed_index: int) -> bool:
+    f = state.feeds.get(feed_index)
+    if not f:
+        return True
+    return state.current_block > f.updated_at_block + state.stale_window_blocks
+
+
+# -----------------------------------------------------------------------------
+# Commands: bands
+# -----------------------------------------------------------------------------
+
+
+def cmd_band_register(state: FEDarState, tag: str, lower_bps: int, upper_bps: int) -> str:
+    if lower_bps >= upper_bps:
+        return "Error: lower_bps must be < upper_bps"
+    if state.band_counter >= state.band_cap:
+        return "Error: band cap exceeded"
