@@ -511,3 +511,60 @@ JER0ME_ABI = [
 
 def simulate_contract_get_band_count(state: FEDarState) -> int:
     return len(state.bands)
+
+
+def simulate_contract_resolve_band_for_bps(state: FEDarState, bps: int) -> Tuple[int, bool]:
+    band_id, found = resolve_band_for_bps(state, bps)
+    return (band_id or 0, found)
+
+
+def simulate_contract_get_feed(state: FEDarState, feed_index: int) -> Tuple[int, int, int]:
+    f = state.feeds.get(feed_index)
+    if not f:
+        return (0, 0, 0)
+    return (f.value, f.timestamp, f.updated_at_block)
+
+
+def simulate_contract_get_session(state: FEDarState, session_id: int) -> Tuple[str, int, int, bool]:
+    s = state.sessions.get(session_id)
+    if not s:
+        return ("0x0000000000000000000000000000000000000000", 0, 0, True)
+    return (s.analyst, s.opened_at_block, s.expiry_block, s.closed)
+
+
+# -----------------------------------------------------------------------------
+# Export / Import
+# -----------------------------------------------------------------------------
+
+
+def cmd_export(state: FEDarState, path: str) -> str:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(state.to_dict(), f, indent=2)
+    return f"State exported to {path}"
+
+
+def cmd_seed_demo(state: FEDarState) -> str:
+    """Populate state with sample bands, signals, feeds, and one session for demo."""
+    if state.band_counter > 0:
+        return "State already has data; use fresh state for seed"
+    for tag, low, high in [("TIGHT", 0, 25), ("NEUTRAL", 25, 75), ("LOOSE", 75, 100)]:
+        cmd_band_register(state, tag, low * 100, high * 100)
+    for _ in range(5):
+        cmd_signal_push(state, str(random.randint(0, 2**32)))
+    for i in range(4):
+        cmd_feed_update(state, i, random.randint(-100, 100))
+    adv = random_address()
+    state.analyst_whitelist[adv] = True
+    cmd_session_open(state, adv)
+    cmd_epoch_advance(state)
+    return "Seeded: 3 bands, 5 signals, 4 feeds, 1 session, epoch advanced"
+
+
+def cmd_import(state: FEDarState, path: str) -> str:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    imported = FEDarState.from_dict(data)
+    state.bands = imported.bands
+    state.signals = imported.signals
