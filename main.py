@@ -340,3 +340,60 @@ def cmd_vote_cast(state: FEDarState, session_id: int, analyst: str, direction: i
         return "Band not found or inactive"
     s.votes[analyst] = AnalystVote(direction=direction, band_id=band_id, at_block=state.current_block)
     return f"Vote cast: session={session_id} direction={direction} band_id={band_id}"
+
+
+def cmd_session_list(state: FEDarState, open_only: bool = False) -> str:
+    lines = ["id | analyst | opened | expiry | closed"]
+    for sid in sorted(state.sessions.keys()):
+        s = state.sessions[sid]
+        if open_only and (s.closed or state.current_block > s.expiry_block):
+            continue
+        lines.append(f"{s.session_id} | {s.analyst[:12]}... | {s.opened_at_block} | {s.expiry_block} | {s.closed}")
+    return "\n".join(lines) if len(lines) > 1 else "No sessions"
+
+
+# -----------------------------------------------------------------------------
+# Commands: feeds
+# -----------------------------------------------------------------------------
+
+
+def cmd_feed_update(state: FEDarState, feed_index: int, value: int) -> str:
+    if feed_index < 0 or feed_index >= MAX_FEEDS:
+        return f"Feed index must be 0..{MAX_FEEDS - 1}"
+    state.feeds[feed_index] = FeedSlot(
+        feed_index=feed_index,
+        value=value,
+        timestamp=int(datetime.now().timestamp()),
+        updated_at_block=state.current_block,
+    )
+    return f"Feed {feed_index} = {value}"
+
+
+def cmd_feed_list(state: FEDarState) -> str:
+    lines = ["index | value | updated_block | stale"]
+    for idx in sorted(state.feeds.keys()):
+        f = state.feeds[idx]
+        stale = is_feed_stale(state, idx)
+        lines.append(f"{f.feed_index} | {f.value} | {f.updated_at_block} | {stale}")
+    return "\n".join(lines) if len(lines) > 1 else "No feeds"
+
+
+# -----------------------------------------------------------------------------
+# Commands: epoch & block
+# -----------------------------------------------------------------------------
+
+
+def cmd_epoch_advance(state: FEDarState) -> str:
+    prev = state.current_epoch
+    state.current_epoch += 1
+    state.epoch_start_blocks[state.current_epoch] = state.current_block
+    return f"Epoch advanced: {prev} -> {state.current_epoch}"
+
+
+def cmd_block_advance(state: FEDarState, delta: int = 1) -> str:
+    advance_block(state, delta)
+    return f"Block: {state.current_block}"
+
+
+def cmd_block_set(state: FEDarState, block_num: int) -> str:
+    state.current_block = block_num
