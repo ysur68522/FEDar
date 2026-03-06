@@ -283,3 +283,60 @@ def cmd_signal_list(state: FEDarState, epoch: Optional[int] = None, limit: int =
     lines = ["id | signal_hash | epoch | at_block"]
     count = 0
     for sid in reversed(sorted(state.signals.keys())):
+        if count >= limit:
+            break
+        s = state.signals[sid]
+        if epoch is not None and s.epoch != epoch:
+            continue
+        lines.append(f"{s.signal_id} | {s.signal_hash[:18]}... | {s.epoch} | {s.at_block}")
+        count += 1
+    return "\n".join(lines) if len(lines) > 1 else "No signals"
+
+
+# -----------------------------------------------------------------------------
+# Commands: sessions & votes
+# -----------------------------------------------------------------------------
+
+
+def cmd_session_open(state: FEDarState, analyst: str) -> str:
+    state.analyst_whitelist[analyst] = True
+    state.session_counter += 1
+    sid = state.session_counter
+    expiry = state.current_block + SESSION_DURATION_BLOCKS
+    state.sessions[sid] = TerminalSession(
+        session_id=sid,
+        analyst=analyst,
+        opened_at_block=state.current_block,
+        expiry_block=expiry,
+        closed=False,
+        votes={},
+    )
+    return f"Session {sid} opened for {analyst}, expires at block {expiry}"
+
+
+def cmd_session_close(state: FEDarState, session_id: int) -> str:
+    s = state.sessions.get(session_id)
+    if not s:
+        return "Session not found"
+    if s.closed:
+        return "Session already closed"
+    s.closed = True
+    return f"Session {session_id} closed"
+
+
+def cmd_vote_cast(state: FEDarState, session_id: int, analyst: str, direction: int, band_id: int) -> str:
+    s = state.sessions.get(session_id)
+    if not s:
+        return "Session not found"
+    if s.closed:
+        return "Session closed"
+    if state.current_block > s.expiry_block:
+        return "Session expired"
+    if s.analyst != analyst:
+        return "Not session analyst"
+    if direction not in (VOTE_HOLD, VOTE_UP, VOTE_DOWN):
+        return "Invalid direction (0=hold, 1=up, 2=down)"
+    if band_id not in state.bands or not state.bands[band_id].active:
+        return "Band not found or inactive"
+    s.votes[analyst] = AnalystVote(direction=direction, band_id=band_id, at_block=state.current_block)
+    return f"Vote cast: session={session_id} direction={direction} band_id={band_id}"
