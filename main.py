@@ -112,3 +112,60 @@ class FEDarState:
     band_history: List[BandHistoryEntry] = field(default_factory=list)
     band_cap: int = MAX_BANDS
     current_epoch: int = 1
+    signal_counter: int = 0
+    session_counter: int = 0
+    band_counter: int = 0
+    history_counter: int = 0
+    epoch_start_blocks: Dict[int, int] = field(default_factory=dict)
+    analyst_whitelist: Dict[str, bool] = field(default_factory=dict)
+    current_block: int = 0
+    stale_window_blocks: int = 50
+    fee_bps: int = 25
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "bands": {str(k): asdict(v) for k, v in self.bands.items()},
+            "signals": {str(k): asdict(v) for k, v in self.signals.items()},
+            "sessions": {str(k): {**asdict(v), "votes": {a: asdict(vv) for a, vv in v.votes.items()}} for k, v in self.sessions.items()},
+            "feeds": {str(k): asdict(v) for k, v in self.feeds.items()},
+            "band_history": [asdict(e) for e in self.band_history],
+            "band_cap": self.band_cap,
+            "current_epoch": self.current_epoch,
+            "signal_counter": self.signal_counter,
+            "session_counter": self.session_counter,
+            "band_counter": self.band_counter,
+            "history_counter": self.history_counter,
+            "epoch_start_blocks": self.epoch_start_blocks,
+            "analyst_whitelist": self.analyst_whitelist,
+            "current_block": self.current_block,
+            "stale_window_blocks": self.stale_window_blocks,
+            "fee_bps": self.fee_bps,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> FEDarState:
+        state = cls()
+        state.band_cap = d.get("band_cap", MAX_BANDS)
+        state.current_epoch = d.get("current_epoch", 1)
+        state.signal_counter = d.get("signal_counter", 0)
+        state.session_counter = d.get("session_counter", 0)
+        state.band_counter = d.get("band_counter", 0)
+        state.history_counter = d.get("history_counter", 0)
+        state.epoch_start_blocks = d.get("epoch_start_blocks", {})
+        state.analyst_whitelist = d.get("analyst_whitelist", {})
+        state.current_block = d.get("current_block", 0)
+        state.stale_window_blocks = d.get("stale_window_blocks", 50)
+        state.fee_bps = d.get("fee_bps", 25)
+        for k, v in d.get("bands", {}).items():
+            state.bands[int(k)] = RateBand(**v)
+        for k, v in d.get("signals", {}).items():
+            state.signals[int(k)] = PolicySignal(**v)
+        for k, v in d.get("sessions", {}).items():
+            votes = {a: AnalystVote(**vv) for a, vv in v.get("votes", {}).items()}
+            state.sessions[int(k)] = TerminalSession(
+                session_id=v["session_id"],
+                analyst=v["analyst"],
+                opened_at_block=v["opened_at_block"],
+                expiry_block=v["expiry_block"],
+                closed=v["closed"],
+                votes=votes,
