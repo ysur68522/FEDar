@@ -397,3 +397,60 @@ def cmd_block_advance(state: FEDarState, delta: int = 1) -> str:
 
 def cmd_block_set(state: FEDarState, block_num: int) -> str:
     state.current_block = block_num
+    return f"Block set to {state.current_block}"
+
+
+# -----------------------------------------------------------------------------
+# Commands: config & state
+# -----------------------------------------------------------------------------
+
+
+def cmd_config_show(state: FEDarState) -> str:
+    return (
+        f"band_cap={state.band_cap} current_epoch={state.current_epoch} "
+        f"current_block={state.current_block} stale_window={state.stale_window_blocks} fee_bps={state.fee_bps}"
+    )
+
+
+def cmd_stats(state: FEDarState) -> str:
+    open_sessions = sum(1 for s in state.sessions.values() if not s.closed and state.current_block <= s.expiry_block)
+    active_bands = sum(1 for b in state.bands.values() if b.active)
+    return (
+        f"Bands: {len(state.bands)} (active: {active_bands}) | "
+        f"Signals: {len(state.signals)} | Sessions: {len(state.sessions)} (open: {open_sessions}) | "
+        f"Feeds: {len(state.feeds)} | Epoch: {state.current_epoch} | Block: {state.current_block}"
+    )
+
+
+def cmd_analyst_whitelist(state: FEDarState, analyst: str, allowed: bool) -> str:
+    state.analyst_whitelist[analyst] = allowed
+    return f"Analyst {analyst} whitelist={allowed}"
+
+
+# -----------------------------------------------------------------------------
+# Commands: band history & feed aggregation
+# -----------------------------------------------------------------------------
+
+
+def cmd_band_history(state: FEDarState, from_idx: Optional[int] = None, to_idx: Optional[int] = None) -> str:
+    entries = state.band_history
+    if not entries:
+        return "No band history"
+    if from_idx is not None and to_idx is not None:
+        entries = entries[from_idx : to_idx + 1]
+    lines = ["entry | band_id | lower_bps | upper_bps | active | at_block"]
+    for i, e in enumerate(entries):
+        lines.append(f"{i} | {e.band_id} | {e.lower_bps} | {e.upper_bps} | {e.active} | {e.at_block}")
+    return "\n".join(lines)
+
+
+def cmd_feed_sum(state: FEDarState, from_idx: int = 0, to_idx: int = MAX_FEEDS - 1) -> str:
+    if from_idx > to_idx or to_idx >= MAX_FEEDS:
+        return f"Invalid range; use 0..{MAX_FEEDS - 1}"
+    total = 0
+    for i in range(from_idx, to_idx + 1):
+        if i in state.feeds:
+            total += state.feeds[i].value
+    return f"Feed sum [{from_idx}-{to_idx}] = {total}"
+
+
